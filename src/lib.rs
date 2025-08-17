@@ -1,16 +1,15 @@
+use log::error;
 use std::error::Error as StdError;
+use std::fmt::{Display, Formatter};
 use std::{
     sync::{Arc, Mutex, mpsc},
     thread,
 };
-use std::fmt::{Display, Formatter};
-use log::error;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: Option<mpsc::Sender<Job>>,
 }
-
 
 #[derive(Debug)]
 pub enum ServerError {
@@ -22,14 +21,12 @@ impl Display for ServerError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ServerError::InternalError(e) => write!(f, "{}", e),
-            ServerError::OtherError(e) => write!(f, "{}", e)
+            ServerError::OtherError(e) => write!(f, "{}", e),
         }
     }
 }
 
-impl StdError for ServerError {
-
-}
+impl StdError for ServerError {}
 
 type Job = Box<dyn FnOnce() -> Result<(), ServerError> + Send + 'static>;
 
@@ -61,14 +58,16 @@ impl ThreadPool {
 
     pub fn execute<F>(&self, f: F)
     where
-    F: FnOnce() -> Result<(), ServerError> + Send + 'static
+        F: FnOnce() -> Result<(), ServerError> + Send + 'static,
     {
         let job = Box::new(f);
         let response = self.sender.as_ref();
         match response {
             Some(response) => {
-                let _ = response.send(job).map_err(|e| error!("Error sending job to worker {e}"));
-            },
+                let _ = response
+                    .send(job)
+                    .map_err(|e| error!("Error sending job to worker {e}"));
+            }
             None => {
                 error!("Error sending job to worker");
             }
@@ -96,30 +95,31 @@ impl Drop for ThreadPool {
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let thread = thread::spawn(move || loop {
-            let message = match receiver.lock() {
-                Ok(guard) => guard.recv(),
-                Err(poisoned) => {
-                    error!("Worker {}: mutex poisoned, shutting down: {}", id, poisoned);
-                    break; // exit the worker loop
-                }
-            };
+        let thread = thread::spawn(move || {
+            loop {
+                let message = match receiver.lock() {
+                    Ok(guard) => guard.recv(),
+                    Err(poisoned) => {
+                        error!("Worker {}: mutex poisoned, shutting down: {}", id, poisoned);
+                        break; // exit the worker loop
+                    }
+                };
 
-            match message {
-                Ok(job) => {
-                    log::info!("worker ID: {} starting a job", id);
-                    if let Err(e) = job() {
-                        error!("Job failed: {}", e);
+                match message {
+                    Ok(job) => {
+                        log::info!("worker ID: {} starting a job", id);
+                        if let Err(e) = job() {
+                            error!("Job failed: {}", e);
+                        }
+                    }
+                    Err(_) => {
+                        log::info!("worker thread terminated ID: {}", id);
+                        break;
                     }
                 }
-                Err(_) => {
-                    log::info!("worker thread terminated ID: {}", id);
-                    break;
-                }
             }
-
         });
-        Worker{
+        Worker {
             id,
             thread: Some(thread),
         }
