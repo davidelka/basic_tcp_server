@@ -2,7 +2,6 @@ use std::fs;
 use std::io::{BufReader, prelude::*};
 use std::net::{TcpListener, TcpStream};
 
-use log;
 use smt_web_server::{ServerError, ThreadPool};
 
 fn main() {
@@ -32,7 +31,7 @@ fn handle_connection(mut stream: TcpStream) -> Result<(), ServerError> {
         Some(request_line) => match request_line {
             Ok(request) => request,
             Err(e) => {
-                log::error!("Error reading request line {}", e);
+                log::error!("Error reading request line {e}");
                 return Ok(());
             }
         },
@@ -56,8 +55,7 @@ fn handle_connection(mut stream: TcpStream) -> Result<(), ServerError> {
             let length = contents.len();
 
             let response = format!(
-                "{status_line}\r\nContent-Length: {length}\r\n\r\n{}",
-                contents
+                "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
             );
 
             stream
@@ -65,10 +63,10 @@ fn handle_connection(mut stream: TcpStream) -> Result<(), ServerError> {
                 .map_err(|_| ServerError::InternalError("Failed to write to stream".to_owned()))
         }
         Err(e) => {
-            log::error!("Error: {}", e);
+            log::error!("Error: {e}");
 
             let status_line = "HTTP/1.1 500 OK";
-            let response = format!("{status_line}");
+            let response = status_line.to_string();
 
             stream
                 .write_all(response.as_bytes())

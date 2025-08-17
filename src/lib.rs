@@ -20,8 +20,8 @@ pub enum ServerError {
 impl Display for ServerError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ServerError::InternalError(e) => write!(f, "{}", e),
-            ServerError::OtherError(e) => write!(f, "{}", e),
+            ServerError::InternalError(e) => write!(f, "{e}"),
+            ServerError::OtherError(e) => write!(f, "{e}"),
         }
     }
 }
@@ -100,20 +100,20 @@ impl Worker {
                 let message = match receiver.lock() {
                     Ok(guard) => guard.recv(),
                     Err(poisoned) => {
-                        error!("Worker {}: mutex poisoned, shutting down: {}", id, poisoned);
+                        error!("Worker {id}: mutex poisoned, shutting down: {poisoned}");
                         break; // exit the worker loop
                     }
                 };
 
                 match message {
                     Ok(job) => {
-                        log::info!("worker ID: {} starting a job", id);
+                        log::info!("worker ID: {id} starting a job");
                         if let Err(e) = job() {
-                            error!("Job failed: {}", e);
+                            error!("Job failed: {e}");
                         }
                     }
                     Err(_) => {
-                        log::info!("worker thread terminated ID: {}", id);
+                        log::info!("worker thread terminated ID: {id}");
                         break;
                     }
                 }
